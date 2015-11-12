@@ -81,7 +81,7 @@ class B2Backend(duplicity.backend.Backend):
         """
         url = self.download_url + \
             '/file/' + self.bucket_name + '/' + remote_filename
-        resp = self.get_or_post(url,None)
+        resp = self.get_or_post(url, None)
 
         to_file = open(local_path.name, 'wb')
         to_file.write(resp)
