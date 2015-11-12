@@ -203,6 +203,10 @@ class B2Backend(duplicity.backend.Backend):
 
     def get_or_post(self, url, data, headers=None, data_file=None):
         """
+        Sends the request, either get or post.
+        If data and data_file are None, send a get request.
+        data_file takes precedence over data.
+        If headers are not supplied, just send with an auth key
         """
         if headers is None:
             headers = {'Authorization': self.auth_token}
@@ -224,6 +228,9 @@ class B2Backend(duplicity.backend.Backend):
                 return out
 
     def get_file_id(self, filename):
+        """
+        Get a file id from filename
+        """
         endpoint = 'b2_list_file_names'
         url = self.formatted_url(endpoint)
         params = {
@@ -242,6 +249,9 @@ class B2Backend(duplicity.backend.Backend):
 
     @staticmethod
     def hex_sha1_of_file(path):
+        """
+        Calculate the sha1 of a file to upload
+        """
         f = path.open()
         block_size = 1024 * 1024
         digest = hashlib.sha1()
