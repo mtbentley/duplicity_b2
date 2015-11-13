@@ -55,6 +55,7 @@ class B2Backend(duplicity.backend.Backend):
             self.bucket_name = self.url_parts.pop(0)
         else:
             raise BackendException("B2 requires a bucket name")
+        self.path = "/".join(self.url_parts)
 
         id_and_key = self.account_id + ":" + account_key
         basic_auth_string = 'Basic ' + base64.b64encode(id_and_key)
@@ -80,7 +81,8 @@ class B2Backend(duplicity.backend.Backend):
         Download remote_filename to local_path
         """
         url = self.download_url + \
-            '/file/' + self.bucket_name + '/' + remote_filename
+            '/file/' + self.bucket_name + '/' + self.path + '/' + \
+            remote_filename
         resp = self.get_or_post(url, None)
 
         to_file = open(local_path.name, 'wb')
@@ -94,6 +96,7 @@ class B2Backend(duplicity.backend.Backend):
         self._delete(remote_filename)
         digest = self.hex_sha1_of_file(source_path)
         content_type = 'application/pgp-encrypted'
+        remote_filename = self.path + '/' + remote_filename
 
         info = self.get_upload_info(self.bucket_id)
         url = info['uploadUrl']
@@ -120,14 +123,14 @@ class B2Backend(duplicity.backend.Backend):
         }
         resp = self.get_or_post(url, params)
 
-        files = [x['fileName'] for x in resp['files']]
+        files = [x['fileName'].split('/')[-1] for x in resp['files']]
 
         next_file = resp['nextFileName']
         while next_file:
             params['nextFileName'] = next_file
             resp = self.get_or_post(url, params)
 
-            files += [x['fileName'] for x in resp['files']]
+            files += [x['fileName'].split('/')[-1] for x in resp['files']]
             next_file = resp['nextFileName']
 
         return files
@@ -141,7 +144,7 @@ class B2Backend(duplicity.backend.Backend):
         fileid = self.get_file_id(filename)
         if fileid is None:
             return
-        params = {'fileName': filename, 'fileId': fileid}
+        params = {'fileName': self.path + '/' + filename, 'fileId': fileid}
         try:
             self.get_or_post(url, params)
         except urllib2.HTTPError as e:
@@ -236,7 +239,7 @@ class B2Backend(duplicity.backend.Backend):
         params = {
             'bucketId': self.bucket_id,
             'maxFileCount': 1,
-            'startFileName': filename,
+            'startFileName': self.path + '/' + filename,
         }
         resp = self.get_or_post(url, params)
 
