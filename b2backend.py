@@ -80,8 +80,9 @@ class B2Backend(duplicity.backend.Backend):
         """
         Download remote_filename to local_path
         """
+        remote_filename = self.full_filename(remote_filename)
         url = self.download_url + \
-            '/file/' + self.bucket_name + '/' + self.path + '/' + \
+            '/file/' + self.bucket_name + '/' + \
             remote_filename
         resp = self.get_or_post(url, None)
 
@@ -96,7 +97,7 @@ class B2Backend(duplicity.backend.Backend):
         self._delete(remote_filename)
         digest = self.hex_sha1_of_file(source_path)
         content_type = 'application/pgp-encrypted'
-        remote_filename = self.path + '/' + remote_filename
+        remote_filename = self.full_filename(remote_filename)
 
         info = self.get_upload_info(self.bucket_id)
         url = info['uploadUrl']
@@ -144,7 +145,8 @@ class B2Backend(duplicity.backend.Backend):
         fileid = self.get_file_id(filename)
         if fileid is None:
             return
-        params = {'fileName': self.path + '/' + filename, 'fileId': fileid}
+        filename = self.full_filename(filename)
+        params = {'fileName': filename, 'fileId': fileid}
         try:
             self.get_or_post(url, params)
         except urllib2.HTTPError as e:
@@ -236,10 +238,11 @@ class B2Backend(duplicity.backend.Backend):
         """
         endpoint = 'b2_list_file_names'
         url = self.formatted_url(endpoint)
+        filename = self.full_filename(filename)
         params = {
             'bucketId': self.bucket_id,
             'maxFileCount': 1,
-            'startFileName': self.path + '/' + filename,
+            'startFileName': filename,
         }
         resp = self.get_or_post(url, params)
 
@@ -249,6 +252,12 @@ class B2Backend(duplicity.backend.Backend):
             return None
         except TypeError:
             return None
+
+    def full_filename(self, filename):
+        if self.path:
+            return self.path + '/' + filename
+        else:
+            return filename
 
     @staticmethod
     def hex_sha1_of_file(path):
