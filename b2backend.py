@@ -125,14 +125,20 @@ class B2Backend(duplicity.backend.Backend):
                 'bucketId': self.bucket_id,
                 'maxFileCount': 1000,
         }
-        resp = self.get_or_post(url, params)
+        try:
+            resp = self.get_or_post(url, params)
+        except urllib2.HTTPError:
+            return []
 
         files = [x['fileName'].split('/')[-1] for x in resp['files']]
 
         next_file = resp['nextFileName']
         while next_file:
-            params['nextFileName'] = next_file
-            resp = self.get_or_post(url, params)
+            params['startFileName'] = next_file
+            try:
+                resp = self.get_or_post(url, params)
+            except urllib2.HTTPError:
+                return files
 
             files += [x['fileName'].split('/')[-1] for x in resp['files']]
             next_file = resp['nextFileName']
@@ -164,10 +170,8 @@ class B2Backend(duplicity.backend.Backend):
         """
         info = self.get_file_info(filename)
         if not info:
-            print(filename, {'size': -1})
             return {'size': -1}
 
-        print(filename, {'size': info['size']})
         return {'size': info['size']}
 
     def find_or_create_bucket(self, bucket_name):
