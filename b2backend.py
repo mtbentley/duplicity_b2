@@ -26,7 +26,7 @@ import os
 import hashlib
 
 import duplicity.backend
-from duplicity.errors import BackendException
+from duplicity.errors import BackendException, FatalBackendException
 
 import json
 import urllib2
@@ -74,7 +74,10 @@ class B2Backend(duplicity.backend.Backend):
         self.api_url = response_data['apiUrl']
         self.download_url = response_data['downloadUrl']
 
-        self.find_or_create_bucket(self.bucket_name)
+        try:
+            self.find_or_create_bucket(self.bucket_name)
+        except urllib2.HTTPError:
+            raise FatalBackendException("Bucket cannot be created")
 
     def _get(self, remote_filename, local_path):
         """
@@ -155,6 +158,18 @@ class B2Backend(duplicity.backend.Backend):
             else:
                 raise e
 
+    def _query(self, filename):
+        """
+        Get size info of filename
+        """
+        info = self.get_file_info(filename)
+        if not info:
+            print(filename, {'size': -1})
+            return {'size': -1}
+
+        print(filename, {'size': info['size']})
+        return {'size': info['size']}
+
     def find_or_create_bucket(self, bucket_name):
         """
         Find a bucket with name bucket_name and save its id.
@@ -232,9 +247,9 @@ class B2Backend(duplicity.backend.Backend):
             except ValueError:
                 return out
 
-    def get_file_id(self, filename):
+    def get_file_info(self, filename):
         """
-        Get a file id from filename
+        Get a file info from filename
         """
         endpoint = 'b2_list_file_names'
         url = self.formatted_url(endpoint)
@@ -247,7 +262,18 @@ class B2Backend(duplicity.backend.Backend):
         resp = self.get_or_post(url, params)
 
         try:
-            return resp['files'][0]['fileId']
+            return resp['files'][0]
+        except IndexError:
+            return None
+        except TypeError:
+            return None
+
+    def get_file_id(self, filename):
+        """
+        Get a file id form filename
+        """
+        try:
+            return self.get_file_info(filename)['fileId']
         except IndexError:
             return None
         except TypeError:
