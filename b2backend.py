@@ -27,6 +27,7 @@ import hashlib
 
 import duplicity.backend
 from duplicity.errors import BackendException, FatalBackendException
+from duplicity import log
 
 import json
 import urllib2
