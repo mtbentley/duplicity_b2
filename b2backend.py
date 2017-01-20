@@ -61,12 +61,20 @@ class B2Backend(duplicity.backend.Backend):
             raise BackendException("B2 requires a bucket name")
         self.path = "/".join(self.url_parts)
 
-        id_and_key = self.account_id + ":" + account_key
-        basic_auth_string = 'Basic ' + base64.b64encode(id_and_key)
+        self.id_and_key = self.account_id + ":" + account_key
+        self._authorize()
+
+        try:
+            self.find_or_create_bucket(self.bucket_name)
+        except urllib2.HTTPError:
+            raise FatalBackendException("Bucket cannot be created")
+
+    def _authorize(self):
+        basic_auth_string = 'Basic ' + base64.b64encode(self.id_and_key)
         headers = {'Authorization': basic_auth_string}
 
         request = urllib2.Request(
-            'https://api.backblaze.com/b2api/v1/b2_authorize_account',
+            'https://api.backblazeb2.com/b2api/v1/b2_authorize_account',
             headers=headers
         )
 
@@ -77,11 +85,6 @@ class B2Backend(duplicity.backend.Backend):
         self.auth_token = response_data['authorizationToken']
         self.api_url = response_data['apiUrl']
         self.download_url = response_data['downloadUrl']
-
-        try:
-            self.find_or_create_bucket(self.bucket_name)
-        except urllib2.HTTPError:
-            raise FatalBackendException("Bucket cannot be created")
 
     def _get(self, remote_filename, local_path):
         """
@@ -129,8 +132,8 @@ class B2Backend(duplicity.backend.Backend):
         endpoint = 'b2_list_file_names'
         url = self.formatted_url(endpoint)
         params = {
-                'bucketId': self.bucket_id,
-                'maxFileCount': 1000,
+            'bucketId': self.bucket_id,
+            'maxFileCount': 1000,
         }
         try:
             resp = self.get_or_post(url, params)
@@ -188,6 +191,8 @@ class B2Backend(duplicity.backend.Backend):
 
     def _error_code(self, operation, e):
         if isinstance(e, urllib2.HTTPError):
+            if e.code == 400:
+                return log.ErrorCode.bad_request
             if e.code == 500:
                 return log.ErrorCode.backend_error
             if e.code == 403:
@@ -225,7 +230,7 @@ class B2Backend(duplicity.backend.Backend):
             'accountId': self.account_id,
             'bucketName': bucket_name,
             'bucketType': 'allPrivate'
-            }
+        }
         resp = self.get_or_post(url, params)
 
         self.bucket_id = resp['bucketId']
@@ -252,6 +257,8 @@ class B2Backend(duplicity.backend.Backend):
         If headers are not supplied, just send with an auth key
         """
         if headers is None:
+            if self.auth_token is None:
+                self._authorize()
             headers = {'Authorization': self.auth_token}
         if data_file is not None:
             data = data_file
@@ -263,12 +270,18 @@ class B2Backend(duplicity.backend.Backend):
             for (k, v) in headers.iteritems()
         )
 
-        with OpenUrl(url, data, encoded_headers) as resp:
-            out = resp.read()
+        try:
+            with OpenUrl(url, data, encoded_headers) as resp:
+                out = resp.read()
             try:
                 return json.loads(out)
             except ValueError:
                 return out
+        except urllib2.HTTPError as e:
+            if e.code == 401:
+                self.auth_token = None
+                log.Warn("Authtoken expired, will reauthenticate with next attempt")
+            raise e
 
     def get_file_info(self, filename):
         """
@@ -341,11 +354,8 @@ class OpenUrl(object):
     def __enter__(self):
         request = urllib2.Request(self.url, self.data, self.headers)
         self.file = urllib2.urlopen(request)
-        log.Log(
-                "Request of %s returned with status %s" % (
-                    self.url, self.file.code
-                    ), 9
-                )
+        log.Log("Request of %s returned with status %s" %
+                (self.url, self.file.code), 9)
         return self.file
 
     def __exit__(self, exception_type, exception, traceback):
