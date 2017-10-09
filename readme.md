@@ -1,5 +1,6 @@
 *NOTE: THIS IS OFFICIALLY INTEGRATED INTO DUPLICITY. PLEASE REPORT BUGS THERE ON 
-THEIR LAUNCHPAD*
+THEIR LAUNCHPAD, THEY'RE GREAT PEOPLE*  
+(see how I fit all three uses of there their they're in one sentence?)
 
 https://bugs.launchpad.net/duplicity/+bugs
 
